@@ -4,26 +4,33 @@ import math
 
 parameters = sys.argv
 filename = parameters[1]
+output = parameters[2]
+
+
+#-------------------------------
+# Set of parameters
+SPEED = 5500 # Speed in millimeter/minute
+PAUSE_start = 200 # Pause after putting down the printhead
+PAUSE_end = 400 # Pause after pulling up the printhead
+dl_min = 1 # Discretization: ~size of each step; the smaller the more accurate
+dT = 0.001 # Discretization: "delta T"
+#-------------------------------
 
 doc = minidom.parse(filename)
 
 PI = 3.14159265359
 
-SPEED = 5500
-output = 'test.gcode'
-PAUSE_end = 400
-PAUSE_start = 200
-
-dl_min = 1
-dT = 0.01
-
 def distance(x1,y1,x2,y2):
     return math.sqrt((x1-x2)**2 + (y1-y2)**2)
 
-def circle(C,T):
+
+#-------------------------------
+# Parametrization of usual curve
+
+def circle(C,T, shift = 0):
     cx, cy, r = [float(p) for p in C]
-    x = cx+r*math.cos(T*2*PI)
-    y = cy+r*math.sin(T*2*PI)
+    x = cx+r*math.cos(shift+T*2*PI)
+    y = cy+r*math.sin(shift+T*2*PI)
     return (x,y)
 
 def ellipse(E,T):
@@ -31,6 +38,21 @@ def ellipse(E,T):
     x = cx+rx*math.cos(T*2*PI)
     y = cy+ry*math.sin(T*2*PI)
     return (x,y)
+
+# Cubic bezier
+def bezier(b, t):
+    sx, sy, x1, y1, x2, y2, ex, ey = [float(p) for p in b]
+    xt = sx *(1-t)**3 + 3* x1*t*(1-t)**2 + 3*x2*t**2*(1-t) + ex*t**3
+    yt = sy *(1-t)**3 + 3* y1*t*(1-t)**2 + 3*y2*t**2*(1-t) + ey*t**3    
+    return (xt,yt)
+    
+def line(l, T):
+    x1, y1, x2, y2 = [float(p) for p in l]
+    if T < 1:
+        return (x1, y2)
+    else:
+        return (x2,y2)
+#-------------------------------
 
 # F = parametrization function; I = instance of the object
 def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
@@ -55,80 +77,6 @@ def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
         gcode += 'M5\n'
         gcode += 'G4 P0.{}\n'.format(PAUSE_end)
     return gcode
-
-# dl = discretisation length
-# def circle_to_path(C):
-#     cx, cy, r = [float(p) for p in C]
-#     r = r
-#     sx1 = cx+r
-#     sy1 = cy
-#     T = 0
-#     gcode = 'G1 X{} Y{}\nM3 S1000\nG4 P0.{}\n'.format(sx1,sy1,PAUSE_start)
-#     T+=dT
-#     while T < 2*PI:
-#         sx2 = cx+r*math.cos(T)
-#         sy2 = cy+r*math.sin(T)
-#         if distance(sx1,sy1,sx2,sy2) < dl_min:
-#             T+=dT
-#         else:
-#             gcode += 'G1 X{} Y{}\n'.format(sx2,sy2)
-#             T+=dT
-#             sx1, sy1 = sx2, sy2
-
-#     sx2 = cx+r*math.cos(2*PI)
-#     sy2 = cy+r*math.sin(2*PI)
-#     gcode += 'G1 X{} Y{}\n'.format(sx2,sy2)
-#     gcode += 'M5\n'
-#     gcode += 'G4 P0.{}\n'.format(PAUSE_end)
-#     return gcode
-
-# def ellipse_to_path(E):
-#     cx, cy, rx, ry = [float(p) for p in E]
-#     rx= rx
-#     ry = ry
-#     sx1 = cx+rx
-#     sy1 = cy
-#     T = 0
-#     gcode = 'G1 X{} Y{}\nM3 S1000\nG4 P0.{}\n'.format(sx1,sy1,PAUSE_start)
-#     T+=dT
-#     while T< 2*PI:
-#         sx2 = cx+rx*math.cos(T)
-#         sy2 = cy+ry*math.sin(T)
-#         if distance(sx1,sy1,sx2,sy2) < dl_min:
-#             T+=dT
-#         else:
-#             gcode += 'G1 X{} Y{}\n'.format(sx2,sy2)
-#             T+=dT
-#             sx1, sy1 = sx2, sy2
-
-#     sx2 = cx+rx*math.cos(2*PI)
-#     sy2 = cy+ry*math.sin(2*PI)
-#     gcode += 'G1 X{} Y{}\n'.format(sx2,sy2)
-#     gcode += 'M5\n'
-#     gcode += 'G4 P0.{}\n'.format(PAUSE_end)
-#     return gcode
-
-
-def bezier(b, t):
-    sx, sy, x1, y1, x2, y2, ex, ey = [float(p) for p in b]
-    xt = sx *(1-t)**3 + 3* x1*t*(1-t)**2 + 3*x2*t**2*(1-t) + ex*t**3
-    yt = sy *(1-t)**3 + 3* y1*t*(1-t)**2 + 3*y2*t**2*(1-t) + ey*t**3    
-    return (xt,yt)
-    
-def line(l, T):
-    x1, y1, x2, y2 = [float(p) for p in l]
-    if T < 1:
-        return (x1, y2)
-    else:
-        return (x2,y2)
-    
-# def line_to_path(line):
-#     sx1, sy1, sx2, sy2 = line
-#     gcode = 'G1 X{} Y{}\nM3 S1000\nG4 P0.{}\n'.format(sx1,sy1,PAUSE_start)
-#     gcode += 'G1 X{} Y{}\n'.format(sx2,sy2)
-#     gcode += 'M5\n'
-#     gcode += 'G4 P0.{}\n'.format(PAUSE_end)
-#     return gcode
 
 
 def path_to_gcode(d):
@@ -160,6 +108,19 @@ def path_to_gcode(d):
             gcode += draw_object(bezier, [cx,cy,float(p[i][1:]),float(p[i+1]),float(p[i+2]),float(p[i+3]), float(p[i+4]), float(p[i+5])], start = 0, end = 1, DOWN = False, UP = False)
             cx, cy = p[i+4],p[i+5]
             i+=6
+        elif p[i][0] == 'Q': # quadratic bezier curve; simulated with the cubic one
+            x1, y1 = float(p[i][1:]), float(p[i+1])
+            x, y = float(p[i+2]), float(p[i+3])
+            gcode += draw_object(bezier, [cx,cy,1/3*(cx+2*x1),1/3*(cy+2*y1),1/3*(x1+2*x), 1/3*(y1+2*y) x,y], start = 0, end = 1, DOWN = False, UP = False)
+            cx, cy = x, y
+            i+=4
+        # elif p[i][0] == 'A':
+        #     rx, ry = float(p[i][1:]), float(p[i+1])
+        #     x_axis_rotation = float(p[i+2])
+        #     large_arc_flag = float(p[i+3])
+        #     sweep_flag  = float(p[i+4])
+        #     x, y = float(p[i+5]), float(p[i+6])
+            
 
     gcode += 'M5\n'
     gcode += 'G4 P0.{}\n'.format(PAUSE_end)
