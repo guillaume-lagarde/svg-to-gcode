@@ -79,8 +79,7 @@ def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
     return gcode
 
 
-def path_to_gcode(d):
-    p = d.split()
+def path_to_gcode(p):
     i = 0
     gcode = ""
     cx = 0
@@ -108,23 +107,27 @@ def path_to_gcode(d):
             gcode += draw_object(bezier, [cx,cy,float(p[i][1:]),float(p[i+1]),float(p[i+2]),float(p[i+3]), float(p[i+4]), float(p[i+5])], start = 0, end = 1, DOWN = False, UP = False)
             cx, cy = p[i+4],p[i+5]
             i+=6
-        elif p[i][0] == 'Q': # quadratic bezier curve; simulated with the cubic one
-            x1, y1 = float(p[i][1:]), float(p[i+1])
-            x, y = float(p[i+2]), float(p[i+3])
-            gcode += draw_object(bezier, [cx,cy,1/3*(cx+2*x1),1/3*(cy+2*y1),1/3*(x1+2*x), 1/3*(y1+2*y) x,y], start = 0, end = 1, DOWN = False, UP = False)
-            cx, cy = x, y
-            i+=4
+        # elif p[i][0] == 'Q': # quadratic bezier curve; simulated with the cubic one
+        #     x1, y1 = float(p[i][1:]), float(p[i+1])
+        #     x, y = float(p[i+2]), float(p[i+3])
+        #     gcode += draw_object(bezier, [cx,cy,1/3*(cx+2*x1),1/3*(cy+2*y1),1/3*(x1+2*x), 1/3*(y1+2*y) x,y], start = 0, end = 1, DOWN = False, UP = False)
+        #     cx, cy = x, y
+        #     i+=4
         # elif p[i][0] == 'A':
         #     rx, ry = float(p[i][1:]), float(p[i+1])
         #     x_axis_rotation = float(p[i+2])
         #     large_arc_flag = float(p[i+3])
         #     sweep_flag  = float(p[i+4])
         #     x, y = float(p[i+5]), float(p[i+6])
-            
-
     gcode += 'M5\n'
     gcode += 'G4 P0.{}\n'.format(PAUSE_end)
     return gcode
+
+def delete_Z(p):
+    if p[-1] == 'z' or p[-1] == 'Z':
+        return p[:-1] + ['L{}'.format(p[0][1:])] + [p[1]]
+    else:
+        return p
 
 class SVG_info:
 
@@ -135,6 +138,22 @@ class SVG_info:
         self.paths = [(l.getAttribute('d')) for l in doc.getElementsByTagName('path')]
         self.paths_parameterized = []
         self.output = output
+        self.clean_it()
+
+    def clean_it(self):
+        self.paths = [delete_Z(d.split()) for d in self.paths]
+        
+    def merge(self):
+        b = True
+        L = len(self.paths)
+        while b:
+            for i in range(L):
+                for j in range(L):
+                    if i != j:
+                        if distance(*end(self.paths[i]), *start(self.path[j])):
+                            self.paths[j]+= self.paths[i][2:]
+                            self.paths.pop(i)
+                                
 
     def gcode(self):
         f = open(self.output, 'w')
