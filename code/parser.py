@@ -10,15 +10,15 @@ output = parameters[2]
 
 #-------------------------------
 # Set of parameters
-SPEED = 5000 # Speed in millimeter/minute
+SPEED = 3000 # Speed in millimeter/minute
 PAUSE_start = 200 # Pause after putting down the printhead
 PAUSE_end = 400 # Pause after pulling up the printhead
 dl_min = 1 # Discretization: ~size of each step; the smaller the more accurate
-dl2 = 0.1 # merge two paths whose distance(end1, start2) < dl2
+dl2 = 0.4 # merge two paths whose distance(end1, start2) < dl2
 dT = 0.0001 # Discretization: "delta T"
 accuracy = 0.1
 X = 1 #normal x-axis
-Y = -1 #reverse y-axis
+Y = 1 #reverse y-axis
 #-------------------------------
 
 doc = minidom.parse(filename)
@@ -65,7 +65,8 @@ def line(l, T):
 def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
     T = start
     x, y = F(I,T)
-    gcode = 'G1 X{} Y{}\n'.format(x,Y*y)
+    gcode = ""
+    # gcode = 'G1 X{} Y{}\n'.format(x,Y*y)
     if DOWN:
         gcode += 'M3 S1000\n'
         gcode += 'G4 P0.{}\n'.format(PAUSE_start)
@@ -79,7 +80,8 @@ def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
             T+=dT
             x, y = x2, y2
     x2,y2 = F(I,end)
-    gcode += 'G1 X{} Y{}\n'.format(X*approx(x2),Y*approx(y2))
+    if distance(x,y,x2,y2) > dl2:
+        gcode += 'G1 X{} Y{}\n'.format(X*approx(x2),Y*approx(y2))
     if UP:
         gcode += 'M5\n'
         gcode += 'G4 P0.{}\n'.format(PAUSE_end)
@@ -92,6 +94,7 @@ def path_to_gcode(p):
     cx = 0
     cy = 0
     while i < len(p):
+        print(i)
         if p[i] == 'M':
             x, y = float(p[i+1]),float(p[i+2])
             gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
