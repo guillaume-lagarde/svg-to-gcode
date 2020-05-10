@@ -1,6 +1,7 @@
 import sys
 from xml.dom import minidom
 import math
+import re
 
 parameters = sys.argv
 filename = parameters[1]
@@ -13,7 +14,9 @@ SPEED = 5500 # Speed in millimeter/minute
 PAUSE_start = 200 # Pause after putting down the printhead
 PAUSE_end = 400 # Pause after pulling up the printhead
 dl_min = 1 # Discretization: ~size of each step; the smaller the more accurate
+dl2 = 0.1 # merge two paths whose distance(end1, start2) < dl2
 dT = 0.001 # Discretization: "delta T"
+accuracy = 0.1
 #-------------------------------
 
 doc = minidom.parse(filename)
@@ -23,6 +26,8 @@ PI = 3.14159265359
 def distance(x1,y1,x2,y2):
     return math.sqrt((x1-x2)**2 + (y1-y2)**2)
 
+def approx(f):
+    return int(f/accuracy)*accuracy
 
 #-------------------------------
 # Parametrization of usual curve
@@ -68,11 +73,11 @@ def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
         if distance(x,y,x2,y2) < dl_min:
             T+=dT
         else:
-            gcode += 'G1 X{} Y{}\n'.format(x2,y2)
+            gcode += 'G1 X{} Y{}\n'.format(approx(x2),approx(y2))
             T+=dT
             x, y = x2, y2
     x2,y2 = F(I,end)
-    gcode += 'G1 X{} Y{}\n'.format(x2,y2)
+    gcode += 'G1 X{} Y{}\n'.format(approx(x2),approx(y2))
     if UP:
         gcode += 'M5\n'
         gcode += 'G4 P0.{}\n'.format(PAUSE_end)
@@ -86,27 +91,31 @@ def path_to_gcode(p):
     cy = 0
     while i < len(p):
         print(i)
-        if p[i][0] == 'M':
-            gcode += 'G1 X{} Y{}\n'.format(p[i][1:],p[i+1])
+        print(p[i-3:i+3])
+        if p[i] == 'M':
+            x, y = float(p[i+1]),float(p[i+2])
+            gcode += 'G1 X{} Y{}\n'.format(approx(x),approx(y))
             gcode += 'M3 S1000\n'
             gcode += 'G4 P0.{}\n'.format(PAUSE_start)
+            cx = float(p[i+1])
+            cy = float(p[i+2])
+            i+=3
+        elif p[i] == 'L':
+            x, y = float(p[i][1:]),float(p[i+1])
+            gcode += 'G1 X{} Y{}\n'.format(approx(x),approx(y))
             cx = float(p[i][1:])
             cy = float(p[i+1])
             i+=2
-        elif p[i][0] == 'L':
-            gcode += 'G1 X{} Y{}\n'.format(p[i][1:],p[i+1])
-            cx = float(p[i][1:])
-            cy = float(p[i+1])
-            i+=2
-        elif p[i][0] == 'Z':
-            gcode += 'G1 X{} Y{}\n'.format(p[0][1:],p[1])
-            cx = float(p[0][1:])
-            cy = float(p[1])
+        elif p[i] == 'Z':
+            x, y = float(p[1]),float(p[2])
+            gcode += 'G1 X{} Y{}\n'.format(approx(x),approx(y))
+            cx = float(p[1])
+            cy = float(p[2])
             i+=1
-        elif p[i][0] == 'C':            
-            gcode += draw_object(bezier, [cx,cy,float(p[i][1:]),float(p[i+1]),float(p[i+2]),float(p[i+3]), float(p[i+4]), float(p[i+5])], start = 0, end = 1, DOWN = False, UP = False)
-            cx, cy = p[i+4],p[i+5]
-            i+=6
+        elif p[i] == 'C':
+            gcode += draw_object(bezier, [cx,cy,float(p[i+1]),float(p[i+2]),float(p[i+3]),float(p[i+4]), float(p[i+5]), float(p[i+6])], start = 0, end = 1, DOWN = False, UP = False)
+            cx, cy = p[i+5],p[i+6]
+            i+=7
         # elif p[i][0] == 'Q': # quadratic bezier curve; simulated with the cubic one
         #     x1, y1 = float(p[i][1:]), float(p[i+1])
         #     x, y = float(p[i+2]), float(p[i+3])
@@ -128,7 +137,7 @@ def delete_Z(p):
         return p[:-1] + ['L{}'.format(p[0][1:])] + [p[1]]
     else:
         return p
-
+    
 class SVG_info:
 
     def __init__(self,doc, output):
@@ -141,18 +150,30 @@ class SVG_info:
         self.clean_it()
 
     def clean_it(self):
-        self.paths = [delete_Z(d.split()) for d in self.paths]
+        print(self.paths[0])
+        self.paths = [delete_Z(list(filter(None,re.split('([M|C|L])|,| ',d)))) for d in self.paths]
         
     def merge(self):
         b = True
         L = len(self.paths)
+        P = {(index, self.paths[index]) for i in range(len(self.paths))}
         while b:
-            for i in range(L):
-                for j in range(L):
-                    if i != j:
-                        if distance(*end(self.paths[i]), *start(self.path[j])):
-                            self.paths[j]+= self.paths[i][2:]
-                            self.paths.pop(i)
+            b = False
+            for d1 in P:
+                for d2 in P:
+                    if d1 != d2:
+                        if distance(*end(P[d1]), *start(P[d2])) < dl2:
+                            P[d1] += P.pop(d2)[2:]
+                            b = True
+                            break
+        self.paths = [d for d in P]
+                            
+            # for i in range(L):
+            #     for j in range(L):
+            #         if i != j:
+            #             if distance(*end(self.paths[i]), *start(self.path[j])):
+            #                 self.paths[j]+= self.paths[i][2:]
+            #                 self.paths.pop(i)
                                 
 
     def gcode(self):
