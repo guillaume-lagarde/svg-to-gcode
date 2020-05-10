@@ -10,13 +10,15 @@ output = parameters[2]
 
 #-------------------------------
 # Set of parameters
-SPEED = 5500 # Speed in millimeter/minute
+SPEED = 5000 # Speed in millimeter/minute
 PAUSE_start = 200 # Pause after putting down the printhead
 PAUSE_end = 400 # Pause after pulling up the printhead
 dl_min = 1 # Discretization: ~size of each step; the smaller the more accurate
 dl2 = 0.1 # merge two paths whose distance(end1, start2) < dl2
-dT = 0.001 # Discretization: "delta T"
+dT = 0.0001 # Discretization: "delta T"
 accuracy = 0.1
+X = 1 #normal x-axis
+Y = -1 #reverse y-axis
 #-------------------------------
 
 doc = minidom.parse(filename)
@@ -63,7 +65,7 @@ def line(l, T):
 def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
     T = start
     x, y = F(I,T)
-    gcode = 'G1 X{} Y{}\n'.format(x,y)
+    gcode = 'G1 X{} Y{}\n'.format(x,Y*y)
     if DOWN:
         gcode += 'M3 S1000\n'
         gcode += 'G4 P0.{}\n'.format(PAUSE_start)
@@ -73,11 +75,11 @@ def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
         if distance(x,y,x2,y2) < dl_min:
             T+=dT
         else:
-            gcode += 'G1 X{} Y{}\n'.format(approx(x2),approx(y2))
+            gcode += 'G1 X{} Y{}\n'.format(X*approx(x2),Y*approx(y2))
             T+=dT
             x, y = x2, y2
     x2,y2 = F(I,end)
-    gcode += 'G1 X{} Y{}\n'.format(approx(x2),approx(y2))
+    gcode += 'G1 X{} Y{}\n'.format(X*approx(x2),Y*approx(y2))
     if UP:
         gcode += 'M5\n'
         gcode += 'G4 P0.{}\n'.format(PAUSE_end)
@@ -90,11 +92,9 @@ def path_to_gcode(p):
     cx = 0
     cy = 0
     while i < len(p):
-        print(i)
-        print(p[i-3:i+3])
         if p[i] == 'M':
             x, y = float(p[i+1]),float(p[i+2])
-            gcode += 'G1 X{} Y{}\n'.format(approx(x),approx(y))
+            gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
             gcode += 'M3 S1000\n'
             gcode += 'G4 P0.{}\n'.format(PAUSE_start)
             cx = float(p[i+1])
@@ -102,13 +102,13 @@ def path_to_gcode(p):
             i+=3
         elif p[i] == 'L':
             x, y = float(p[i][1:]),float(p[i+1])
-            gcode += 'G1 X{} Y{}\n'.format(approx(x),approx(y))
+            gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
             cx = float(p[i][1:])
             cy = float(p[i+1])
             i+=2
         elif p[i] == 'Z':
             x, y = float(p[1]),float(p[2])
-            gcode += 'G1 X{} Y{}\n'.format(approx(x),approx(y))
+            gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
             cx = float(p[1])
             cy = float(p[2])
             i+=1
@@ -116,6 +116,11 @@ def path_to_gcode(p):
             gcode += draw_object(bezier, [cx,cy,float(p[i+1]),float(p[i+2]),float(p[i+3]),float(p[i+4]), float(p[i+5]), float(p[i+6])], start = 0, end = 1, DOWN = False, UP = False)
             cx, cy = p[i+5],p[i+6]
             i+=7
+        else:
+            gcode += draw_object(bezier, [cx,cy,float(p[i]),float(p[i+1]),float(p[i+2]),float(p[i+3]), float(p[i+4]), float(p[i+5])], start = 0, end = 1, DOWN = False, UP = False)
+            cx, cy = p[i+4],p[i+5]
+            i+=6
+
         # elif p[i][0] == 'Q': # quadratic bezier curve; simulated with the cubic one
         #     x1, y1 = float(p[i][1:]), float(p[i+1])
         #     x, y = float(p[i+2]), float(p[i+3])
@@ -150,7 +155,6 @@ class SVG_info:
         self.clean_it()
 
     def clean_it(self):
-        print(self.paths[0])
         self.paths = [delete_Z(list(filter(None,re.split('([M|C|L])|,| ',d)))) for d in self.paths]
         
     def merge(self):
