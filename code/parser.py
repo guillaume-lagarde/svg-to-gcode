@@ -15,7 +15,7 @@ PAUSE_start = 200 # Pause after putting down the printhead
 PAUSE_end = 400 # Pause after pulling up the printhead
 dl_min = 1 # Discretization: ~size of each step; the smaller the more accurate
 dl2 = 0.4 # merge two paths whose distance(end1, start2) < dl2
-dT = 0.0001 # Discretization: "delta T"
+dT = 0.001 # Discretization: "delta T"
 accuracy = 0.1
 X = 1 #normal x-axis
 Y = 1 #reverse y-axis
@@ -85,7 +85,7 @@ def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
     if UP:
         gcode += 'M5\n'
         gcode += 'G4 P0.{}\n'.format(PAUSE_end)
-    return gcode
+    return gcode, x,y
 
 
 def path_to_gcode(p):
@@ -94,7 +94,6 @@ def path_to_gcode(p):
     cx = 0
     cy = 0
     while i < len(p):
-        print(i)
         if p[i] == 'M':
             x, y = float(p[i+1]),float(p[i+2])
             gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
@@ -116,13 +115,20 @@ def path_to_gcode(p):
             cy = float(p[2])
             i+=1
         elif p[i] == 'C':
-            gcode += draw_object(bezier, [cx,cy,float(p[i+1]),float(p[i+2]),float(p[i+3]),float(p[i+4]), float(p[i+5]), float(p[i+6])], start = 0, end = 1, DOWN = False, UP = False)
-            cx, cy = p[i+5],p[i+6]
+            code, x, y = draw_object(bezier, [cx,cy,float(p[i+1]),float(p[i+2]),float(p[i+3]),float(p[i+4]), float(p[i+5]), float(p[i+6])], start = 0, end = 1, DOWN = False, UP = False)
+            gcode+=code
+            cx = approx(x)
+            cy = approx(y)
             i+=7
-        else:
-            gcode += draw_object(bezier, [cx,cy,float(p[i]),float(p[i+1]),float(p[i+2]),float(p[i+3]), float(p[i+4]), float(p[i+5])], start = 0, end = 1, DOWN = False, UP = False)
-            cx, cy = p[i+4],p[i+5]
-            i+=6
+            # OLD VERSION
+            # gcode += draw_object(bezier, [cx,cy,float(p[i+1]),float(p[i+2]),float(p[i+3]),float(p[i+4]), float(p[i+5]), float(p[i+6])], start = 0, end = 1, DOWN = False, UP = False)
+            # cx, cy = p[i+5],p[i+6]
+            # END OLD VERSION
+            
+        # else:
+        #     gcode += draw_object(bezier, [cx,cy,float(p[i]),float(p[i+1]),float(p[i+2]),float(p[i+3]), float(p[i+4]), float(p[i+5])], start = 0, end = 1, DOWN = False, UP = False)
+        #     cx, cy = p[i+4],p[i+5]
+        #     i+=6
 
         # elif p[i][0] == 'Q': # quadratic bezier curve; simulated with the cubic one
         #     x1, y1 = float(p[i][1:]), float(p[i+1])
@@ -192,15 +198,18 @@ class SVG_info:
         f.write('G1 F{}\n'.format(SPEED)) # Speed in millimeter/minute
 
         for e in self.ellipses:
-            f.write(draw_object(ellipse, e))
+            f.write(draw_object(ellipse, e)[0])
 
         for c in self.circles:
-            f.write(draw_object(circle, c, UP = False))
+            f.write(draw_object(circle, c, UP = False)[0])
 
         for l in self.lines:
-            f.write(draw_object(line,l, UP = False))
+            f.write(draw_object(line,l, UP = False)[0])
 
+        i = 1
         for p in self.paths:
+            print(i, len(self.paths))
+            i+=1
             f.write(path_to_gcode(p))
 
         # Get back home
