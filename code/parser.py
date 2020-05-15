@@ -10,15 +10,16 @@ output = parameters[2]
 
 #-------------------------------
 # Set of parameters
-SPEED = 3000 # Speed in millimeter/minute
-PAUSE_start = 200 # Pause after putting down the printhead
-PAUSE_end = 400 # Pause after pulling up the printhead
-dl_min = 1 # Discretization: ~size of each step; the smaller the more accurate
-dl2 = 0.4 # merge two paths whose distance(end1, start2) < dl2
-dT = 0.001 # Discretization: "delta T"
-accuracy = 0.1
-X = 1 #normal x-axis
-Y = 1 #reverse y-axis
+SPEED = 3000 # Speed in millimeters/minute
+PAUSE_start = 200 # Pause in milliseconds after putting down the printhead
+PAUSE_end = 400 # Pause in milliseconds after pulling up the printhead
+dl_min = 1 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
+dl_max = 2 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
+# sensitivity = 0.4 # 
+dT_min = 0.001 # Discretization: "delta T minimum"
+accuracy = 0.1 # Discretization: everything is approximated at 0.1 millimeters
+X = 1 #normal x-axis; -1 to reverse axis
+Y = 1 #normal y-axis; -1 to reverse axis
 #-------------------------------
 
 doc = minidom.parse(filename)
@@ -46,11 +47,11 @@ def ellipse(E,T):
     y = cy+ry*math.sin(T*2*PI)
     return (x,y)
 
-# Cubic bezier
-def bezier(b, t):
+# Cubic Bezier
+def bezier(b, T):
     sx, sy, x1, y1, x2, y2, ex, ey = [float(p) for p in b]
-    xt = sx *(1-t)**3 + 3* x1*t*(1-t)**2 + 3*x2*t**2*(1-t) + ex*t**3
-    yt = sy *(1-t)**3 + 3* y1*t*(1-t)**2 + 3*y2*t**2*(1-t) + ey*t**3    
+    xt = sx *(1-T)**3 + 3* x1*T*(1-T)**2 + 3*x2*T**2*(1-T) + ex*T**3
+    yt = sy *(1-T)**3 + 3* y1*T*(1-T)**2 + 3*y2*T**2*(1-T) + ey*T**3    
     return (xt,yt)
     
 def line(l, T):
@@ -59,67 +60,188 @@ def line(l, T):
         return (x1, y2)
     else:
         return (x2,y2)
+
 #-------------------------------
 
-# F = parametrization function; I = instance of the object
-def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
-    T = start
+# F = parameterization function, I = parameters of the object,
+# current_position is the position of the printhead at T < 0, If DOWN
+# = True, it means the printhead is up before drawing this new object;
+# if UP = True, we ask the printhead to go up after printing the object
+# Output gcode + new current position of the printhead
+def draw_object(F, I, current_position, DOWN = True, UP = True):
+    T = 0
+    cx, cy = current_position
     x, y = F(I,T)
-    gcode = ""
-    # gcode = 'G1 X{} Y{}\n'.format(x,Y*y)
+    dT = dT_min
     if DOWN:
+        gcode += 'G1 X{} Y{}\n'.format(x,y)
         gcode += 'M3 S1000\n'
         gcode += 'G4 P0.{}\n'.format(PAUSE_start)
-    T+=dT
-    while T < end:
-        x2, y2 = F(I,T)
-        if distance(x,y,x2,y2) < dl_min:
-            T+=dT
-        else:
-            gcode += 'G1 X{} Y{}\n'.format(X*approx(x2),Y*approx(y2))
-            T+=dT
-            x, y = x2, y2
-    x2,y2 = F(I,end)
-    if distance(x,y,x2,y2) > dl2:
-        gcode += 'G1 X{} Y{}\n'.format(X*approx(x2),Y*approx(y2))
+
+    while T < 1:
+        if distance(cx,cy, x, y) > dl_min:
+            cx, cy = approx(x), approx(y)
+            gcode += 'G1 X{} Y{}\n'.format(cx,cy)
+        T+=dT
+        x, y = F(I,T)
+    T = 1
+    x, y = F(I,T)
+    if distance(cx,cy,x,y) > sensitivity:
+        cx, cy = approx(x), approx(y)
+        gcode += 'G1 X{} Y{}\n'.format(cx, cy)
     if UP:
         gcode += 'M5\n'
         gcode += 'G4 P0.{}\n'.format(PAUSE_end)
-    return gcode, x,y
+    return gcode, cx, cy
 
 
-def path_to_gcode(p):
+
+# transform a point x,y with the given transformation
+# matrix, translate, scale, rotate, skewX, skewY, 
+def transform(x,y, transformations):
+    rx = x
+    ry = y
+    list_T = re.split(' ', transformations) # list of each transformation
+    print(list_T)
+    for T in list_T:
+        T_split = list(filter(lambda x: x!='',re.split('\(|,|\)',T))) # expand as a list of parameters
+        print(T_split)
+        name = T_split[0]
+        if name == "matrix":
+            a,b,c,d,e,f = [float(g) for g in T_split[1:]]
+            x_temp = a*rx+c*ry+e
+            y_temp = b*rx+d*ry+f
+            rx, ry = x_temp, y_temp
+            
+        elif name == "translate":
+            xshift = float(T_split[1])
+            if len(T_split) <= 2:
+                yshift = xshift
+            else:
+                yshift = float(T_split[2])
+            rx += xshift
+            ry += yshift
+            
+        elif name == "rotate":
+            print("not yet implemented")
+            
+        elif name == "scale":
+            xscale = float(T_split[1])
+            if len(T_split) <= 2:
+                yscale = xscale
+            else:
+                yscale = float(T_split[2])
+            rx*=xscale
+            ry*=yscale
+            
+        elif name == "skewX":
+            print("not yet implemented")
+            
+        elif name == "skewY":
+            print("not yet implemented")
+            
+    return approx(rx),approx(ry)
+
+def path_to_gcode(p, transformation = ""):
     i = 0
     gcode = ""
     cx = 0
     cy = 0
     while i < len(p):
+        # Move
         if p[i] == 'M':
-            x, y = float(p[i+1]),float(p[i+2])
-            gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
+            cx, cy = transform(float(p[i+1]),float(p[i+2]),transformation)
+            gcode += 'G1 X{} Y{}\n'.format(cx,cy)
             gcode += 'M3 S1000\n'
             gcode += 'G4 P0.{}\n'.format(PAUSE_start)
-            cx = float(p[i+1])
-            cy = float(p[i+2])
             i+=3
+            
+        # Line
         elif p[i] == 'L':
-            x, y = float(p[i][1:]),float(p[i+1])
-            gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
-            cx = float(p[i][1:])
-            cy = float(p[i+1])
-            i+=2
+            cx, cy = transform(float(p[i+1]),float(p[i+2]), transformation)
+            gcode += 'G1 X{} Y{}\n'.format(cx, cy)
+            i+=3
+            
+        # Goto initial point 
         elif p[i] == 'Z':
-            x, y = float(p[1]),float(p[2])
+            cx, cy = transform(float(p[1]),float(p[2]),transformation)
             gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
-            cx = float(p[1])
-            cy = float(p[2])
             i+=1
+
+        # Cubic Bezier
         elif p[i] == 'C':
-            code, x, y = draw_object(bezier, [cx,cy,float(p[i+1]),float(p[i+2]),float(p[i+3]),float(p[i+4]), float(p[i+5]), float(p[i+6])], start = 0, end = 1, DOWN = False, UP = False)
+            P1x, P1y = transform(float(p[i-2]), float(p[i-1]), transformation)
+            P2x, P2y = transform(float(p[i+1]), float(p[i+2]), transformation)
+            P3x, P3y = transform(float(p[i+3]), float(p[i+4]), transformation)
+            P4x, P4y = transform(float(p[i+5]), float(p[i+6]), transformation)
+            code, cx, cy = draw_object(bezier, [P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y], cx, cy, DOWN = False, UP = False)
             gcode+=code
-            cx = approx(x)
-            cy = approx(y)
             i+=7
+
+    gcode += 'M5\n'
+    gcode += 'G4 P0.{}\n'.format(PAUSE_end)
+    return gcode
+            
+
+# # F = parametrization function; I = instance of the object
+# def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
+#     T = start
+#     x, y = F(I,T)
+#     gcode = ""
+#     # gcode = 'G1 X{} Y{}\n'.format(x,Y*y)
+#     if DOWN:
+#         gcode += 'M3 S1000\n'
+#         gcode += 'G4 P0.{}\n'.format(PAUSE_start)
+#     T+=dT
+#     while T < end:
+#         x2, y2 = F(I,T)
+#         if distance(x,y,x2,y2) < dl_min:
+#             T+=dT
+#         else:
+#             gcode += 'G1 X{} Y{}\n'.format(X*approx(x2),Y*approx(y2))
+#             T+=dT
+#             x, y = x2, y2
+#     x2,y2 = F(I,end)
+#     if distance(x,y,x2,y2) > dl2:
+#         gcode += 'G1 X{} Y{}\n'.format(X*approx(x2),Y*approx(y2))
+#     if UP:
+#         gcode += 'M5\n'
+#         gcode += 'G4 P0.{}\n'.format(PAUSE_end)
+#     return gcode, x,y
+
+
+# def path_to_gcode(p):
+#     i = 0
+#     gcode = ""
+#     cx = 0
+#     cy = 0
+#     while i < len(p):
+#         if p[i] == 'M':
+#             x, y = float(p[i+1]),float(p[i+2])
+#             gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
+#             gcode += 'M3 S1000\n'
+#             gcode += 'G4 P0.{}\n'.format(PAUSE_start)
+#             cx = float(p[i+1])
+#             cy = float(p[i+2])
+#             i+=3
+#         elif p[i] == 'L':
+#             x, y = float(p[i][1:]),float(p[i+1])
+#             gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
+#             cx = float(p[i][1:])
+#             cy = float(p[i+1])
+#             i+=2
+#         elif p[i] == 'Z':
+#             x, y = float(p[1]),float(p[2])
+#             gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
+#             cx = float(p[1])
+#             cy = float(p[2])
+#             i+=1
+#         elif p[i] == 'C':
+#             code, x, y = draw_object(bezier, [cx,cy,float(p[i+1]),float(p[i+2]),float(p[i+3]),float(p[i+4]), float(p[i+5]), float(p[i+6])], start = 0, end = 1, DOWN = False, UP = False)
+#             gcode+=code
+#             cx = approx(x)
+#             cy = approx(y)
+#             i+=7
             # OLD VERSION
             # gcode += draw_object(bezier, [cx,cy,float(p[i+1]),float(p[i+2]),float(p[i+3]),float(p[i+4]), float(p[i+5]), float(p[i+6])], start = 0, end = 1, DOWN = False, UP = False)
             # cx, cy = p[i+5],p[i+6]
@@ -142,9 +264,9 @@ def path_to_gcode(p):
         #     large_arc_flag = float(p[i+3])
         #     sweep_flag  = float(p[i+4])
         #     x, y = float(p[i+5]), float(p[i+6])
-    gcode += 'M5\n'
-    gcode += 'G4 P0.{}\n'.format(PAUSE_end)
-    return gcode
+    # gcode += 'M5\n'
+    # gcode += 'G4 P0.{}\n'.format(PAUSE_end)
+    # return gcode
 
 def delete_Z(p):
     if p[-1] == 'z' or p[-1] == 'Z':
@@ -197,18 +319,19 @@ class SVG_info:
         f.write('G21\n') # Unit = millimeters
         f.write('G1 F{}\n'.format(SPEED)) # Speed in millimeter/minute
 
-        for e in self.ellipses:
-            f.write(draw_object(ellipse, e)[0])
+        # for e in self.ellipses:
+        #     f.write(draw_object(ellipse, e)[0])
 
-        for c in self.circles:
-            f.write(draw_object(circle, c, UP = False)[0])
+        # for c in self.circles:
+        #     f.write(draw_object(circle, c, UP = False)[0])
 
-        for l in self.lines:
-            f.write(draw_object(line,l, UP = False)[0])
+        # for l in self.lines:
+        #     f.write(draw_object(line,l, UP = False)[0])
 
         i = 1
+        L = len(self.paths)
         for p in self.paths:
-            print(i, len(self.paths))
+            print("path {} over {}".format(i, L))
             i+=1
             f.write(path_to_gcode(p))
 
