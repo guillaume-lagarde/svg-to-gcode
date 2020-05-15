@@ -123,7 +123,14 @@ def transform(x,y, transformations):
             ry += yshift
             
         elif name == "rotate":
-            print("not yet implemented")
+            angle = float(T_split[1])*2*PI/360 # degree to radian
+            centerx,centery = 0,0
+            if len(T_split[1] >= 2):
+                centerx, centery = float(T_split[2]), float(T_split[3])
+            X = rx - centerx
+            Y = ry-centery
+            rx, ry = centerx + X*cos(angle) - Y*sin(angle), centery + X*sin(angle) + Y*cos(angle)
+            
             
         elif name == "scale":
             xscale = float(T_split[1])
