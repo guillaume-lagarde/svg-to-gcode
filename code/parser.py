@@ -15,9 +15,9 @@ PAUSE_start = 200 # Pause in milliseconds after putting down the printhead
 PAUSE_end = 400 # Pause in milliseconds after pulling up the printhead
 dl_min = 1 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
 dl_max = 2 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
-# sensitivity = 0.4 # 
+sensitivity = 0.4 # 
 dT_min = 0.001 # Discretization: "delta T minimum"
-accuracy = 0.1 # Discretization: everything is approximated at 0.1 millimeters
+accuracy = 2 # Discretization: everything is approximated at 2 decimals
 X = 1 #normal x-axis; -1 to reverse axis
 Y = 1 #normal y-axis; -1 to reverse axis
 #-------------------------------
@@ -30,7 +30,8 @@ def distance(x1,y1,x2,y2):
     return math.sqrt((x1-x2)**2 + (y1-y2)**2)
 
 def approx(f):
-    return int(f/accuracy)*accuracy
+    return round(f,accuracy)
+    # return int(f/accuracy)*accuracy
 
 #-------------------------------
 # Parametrization of usual curve
@@ -68,11 +69,12 @@ def line(l, T):
 # = True, it means the printhead is up before drawing this new object;
 # if UP = True, we ask the printhead to go up after printing the object
 # Output gcode + new current position of the printhead
-def draw_object(F, I, current_position, DOWN = True, UP = True):
+def draw_object(F, I, currentx, currenty, DOWN = True, UP = True):
     T = 0
-    cx, cy = current_position
+    cx, cy = currentx, currenty
     x, y = F(I,T)
     dT = dT_min
+    gcode = ""
     if DOWN:
         gcode += 'G1 X{} Y{}\n'.format(x,y)
         gcode += 'M3 S1000\n'
@@ -101,7 +103,7 @@ def draw_object(F, I, current_position, DOWN = True, UP = True):
 def transform(x,y, transformations):
     rx = x
     ry = y
-    list_T = re.split(' ', transformations) # list of each transformation
+    list_T = list(filter(lambda x: x!='',re.split(' ', transformations))) # list of each transformation
     print(list_T)
     for T in list_T:
         T_split = list(filter(lambda x: x!='',re.split('\(|,|\)',T))) # expand as a list of parameters
@@ -125,11 +127,11 @@ def transform(x,y, transformations):
         elif name == "rotate":
             angle = float(T_split[1])*2*PI/360 # degree to radian
             centerx,centery = 0,0
-            if len(T_split[1] >= 2):
+            if len(T_split) >= 3:
                 centerx, centery = float(T_split[2]), float(T_split[3])
             X = rx - centerx
             Y = ry-centery
-            rx, ry = centerx + X*cos(angle) - Y*sin(angle), centery + X*sin(angle) + Y*cos(angle)
+            rx, ry = centerx + X*math.cos(angle) - Y*math.sin(angle), centery + X*math.sin(angle) + Y*math.cos(angle)
             
             
         elif name == "scale":
@@ -184,6 +186,16 @@ def path_to_gcode(p, transformation = ""):
             code, cx, cy = draw_object(bezier, [P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y], cx, cy, DOWN = False, UP = False)
             gcode+=code
             i+=7
+
+        else:
+            P1x, P1y = transform(float(p[i-2]), float(p[i-1]), transformation)
+            P2x, P2y = transform(float(p[i]), float(p[i+1]), transformation)
+            P3x, P3y = transform(float(p[i+2]), float(p[i+3]), transformation)
+            P4x, P4y = transform(float(p[i+4]), float(p[i+5]), transformation)
+            code, cx, cy = draw_object(bezier, [P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y], cx, cy, DOWN = False, UP = False)
+            gcode+=code
+            i+=6
+
 
     gcode += 'M5\n'
     gcode += 'G4 P0.{}\n'.format(PAUSE_end)
@@ -280,20 +292,30 @@ def delete_Z(p):
         return p[:-1] + ['L{}'.format(p[0][1:])] + [p[1]]
     else:
         return p
-    
+
+
+
+def get_transform(e):
+    res = ""
+    root = e
+    while root != doc:
+        res = root.getAttribute('transform') + " " + res
+        root = root.parentNode
+    return res
+
 class SVG_info:
 
     def __init__(self,doc, output):
-        self.circles = [(l.getAttribute('cx'),l.getAttribute('cy'),l.getAttribute('r')) for l in doc.getElementsByTagName('circle')]
-        self.ellipses = [(l.getAttribute('cx'),l.getAttribute('cy'),l.getAttribute('rx'),l.getAttribute('ry')) for l in doc.getElementsByTagName('ellipse')]
-        self.lines = [(l.getAttribute('x1'),l.getAttribute('y1'),l.getAttribute('x2'),l.getAttribute('y2')) for l in doc.getElementsByTagName('line')]
-        self.paths = [(l.getAttribute('d')) for l in doc.getElementsByTagName('path')]
+        self.circles = [(l.getAttribute('cx'),l.getAttribute('cy'),l.getAttribute('r'),get_transform(l)) for l in doc.getElementsByTagName('circle')]
+        self.ellipses = [(l.getAttribute('cx'),l.getAttribute('cy'),l.getAttribute('rx'),l.getAttribute('ry'),get_transform(l)) for l in doc.getElementsByTagName('ellipse')]
+        self.lines = [(l.getAttribute('x1'),l.getAttribute('y1'),l.getAttribute('x2'),l.getAttribute('y2'), get_transform(l)) for l in doc.getElementsByTagName('line')]
+        self.paths = [(l.getAttribute('d'), get_transform(l)) for l in doc.getElementsByTagName('path')]
         self.paths_parameterized = []
         self.output = output
         self.clean_it()
 
     def clean_it(self):
-        self.paths = [delete_Z(list(filter(None,re.split('([M|C|L])|,| ',d)))) for d in self.paths]
+        self.paths = [(delete_Z(list(filter(None,re.split('([M|C|L])|,| ',d)))),t) for (d,t) in self.paths]
         
     def merge(self):
         b = True
@@ -337,10 +359,10 @@ class SVG_info:
 
         i = 1
         L = len(self.paths)
-        for p in self.paths:
+        for d,l in self.paths:
             print("path {} over {}".format(i, L))
             i+=1
-            f.write(path_to_gcode(p))
+            f.write(path_to_gcode(d,l))
 
         # Get back home
         f.write('M5\n') # to get up the printhead
@@ -350,3 +372,4 @@ class SVG_info:
         f.close()
 
 S = SVG_info(doc, output)
+
