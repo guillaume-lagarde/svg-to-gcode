@@ -104,10 +104,8 @@ def transform(x,y, transformations):
     rx = x
     ry = y
     list_T = list((filter(lambda x: x!='',re.split(' ', transformations)))) # list of each transformation
-    print(list_T)
     for T in list_T:
         T_split = list(filter(lambda x: x!='',re.split('\(|,|\)',T))) # expand as a list of parameters
-        print(T_split)
         name = T_split[0]
         if name == "matrix":
             a,b,c,d,e,f = [float(g) for g in T_split[1:]]
