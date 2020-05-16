@@ -103,7 +103,7 @@ def draw_object(F, I, currentx, currenty, DOWN = True, UP = True):
 def transform(x,y, transformations):
     rx = x
     ry = y
-    list_T = list(filter(lambda x: x!='',re.split(' ', transformations))) # list of each transformation
+    list_T = list((filter(lambda x: x!='',re.split(' ', transformations)))) # list of each transformation
     print(list_T)
     for T in list_T:
         T_split = list(filter(lambda x: x!='',re.split('\(|,|\)',T))) # expand as a list of parameters
@@ -118,7 +118,7 @@ def transform(x,y, transformations):
         elif name == "translate":
             xshift = float(T_split[1])
             if len(T_split) <= 2:
-                yshift = xshift
+                yshift = 0
             else:
                 yshift = float(T_split[2])
             rx += xshift
@@ -299,7 +299,7 @@ def get_transform(e):
     res = ""
     root = e
     while root != doc:
-        res = root.getAttribute('transform') + " " + res
+        res = res + " " + root.getAttribute('transform')
         root = root.parentNode
     return res
 
