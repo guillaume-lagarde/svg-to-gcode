@@ -13,7 +13,7 @@ SPEED = 3000 # Speed in millimeters/minute
 PAUSE_start = 200 # Pause in milliseconds after putting down the printhead
 PAUSE_end = 400 # Pause in milliseconds after pulling up the printhead
 dl_min = 0.2 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
-dl_max = 5 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
+dl_max = 0.6 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
 sensitivity = 0.4 # 
 dT_min = 0.00001 # Discretization: "delta T minimum"
 accuracy = 1 # Discretization: number of decimals (by default everything approximated within 1 decimal)
@@ -94,9 +94,11 @@ def draw_object(F, I, currentx, currenty, DOWN = True, UP = True):
 
     while T < 1:
         if distance(cx,cy, x, y) > dl_min:
-            if distance(cx,cy,x,y) < dl_max:
+            if distance(cx,cy,x,y) < dl_max or dT == 0:
                 cx, cy = approx(x), approx(y)
                 gcode += 'G1 X{} Y{}\n'.format(cx,cy)
+                if dT == 0:
+                    dT = dT_min
             else: # we went to far so decrease the step
                 T -=dT/2
                 dT = dT/4 # next time we increment from previous point by half the step we have made
