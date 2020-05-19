@@ -4,24 +4,33 @@ import math
 import re
 
 parameters = sys.argv
-filename = parameters[1]
-output = parameters[2]
-
 
 #-------------------------------
-# Set of parameters
+# Set of parameters by default
+filename = parameters[1]
+output = filename.split(".")[0] + ".gcode"
 SPEED = 3000 # Speed in millimeters/minute
 PAUSE_start = 200 # Pause in milliseconds after putting down the printhead
 PAUSE_end = 400 # Pause in milliseconds after pulling up the printhead
-dl_min = 0.5 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
-dl_max = 2 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
+dl_min = 0.2 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
+dl_max = 1 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
 sensitivity = 0.4 # 
-dT_min = 0.0001 # Discretization: "delta T minimum"
-accuracy = 2 # Discretization: everything is approximated at 2 decimals
+dT_min = 0.00001 # Discretization: "delta T minimum"
+accuracy = 1 # Discretization: number of decimals (by default everything approximated within 1 decimal)
 X = 1 #normal x-axis; -1 to reverse axis
 Y = 1 #normal y-axis; -1 to reverse axis
 #-------------------------------
 
+# Take into account user's parameters
+for p in parameters[2:]:
+    name, arg = p.split("=")
+    if name != "output":
+        vars()[name] = float(arg)
+    else:
+        vars()[name] = arg
+
+
+        
 doc = minidom.parse(filename)
 
 PI = 3.14159265359
@@ -82,9 +91,14 @@ def draw_object(F, I, currentx, currenty, DOWN = True, UP = True):
 
     while T < 1:
         if distance(cx,cy, x, y) > dl_min:
-            cx, cy = approx(x), approx(y)
-            gcode += 'G1 X{} Y{}\n'.format(cx,cy)
+            if distance(cx,cy,x,y) < dl_max:
+                cx, cy = approx(x), approx(y)
+                gcode += 'G1 X{} Y{}\n'.format(cx,cy)
+            else: # we went to far so decrease the step
+                T -=dT/2
+                dT = dT/4 # next time we increment from previous point by half the step we have made
         T+=dT
+        dT*=2
         x, y = F(I,T)
     T = 1
     x, y = F(I,T)
@@ -358,9 +372,10 @@ class SVG_info:
         i = 1
         L = len(self.paths)
         for d,l in self.paths:
-            print("path {} over {}".format(i, L))
+            print("Computing path {} over {}".format(i, L))
             i+=1
             f.write(path_to_gcode(d,l))
+            print("--> DONE")
 
         # Get back home
         f.write('M5\n') # to get up the printhead
