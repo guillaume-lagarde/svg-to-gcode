@@ -13,21 +13,24 @@ SPEED = 3000 # Speed in millimeters/minute
 PAUSE_start = 200 # Pause in milliseconds after putting down the printhead
 PAUSE_end = 400 # Pause in milliseconds after pulling up the printhead
 dl_min = 0.2 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
-dl_max = 1 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
+dl_max = 5 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
 sensitivity = 0.4 # 
 dT_min = 0.00001 # Discretization: "delta T minimum"
 accuracy = 1 # Discretization: number of decimals (by default everything approximated within 1 decimal)
 X = 1 #normal x-axis; -1 to reverse axis
 Y = 1 #normal y-axis; -1 to reverse axis
+verbose = True
 #-------------------------------
 
 # Take into account user's parameters
 for p in parameters[2:]:
     name, arg = p.split("=")
-    if name != "output":
-        vars()[name] = float(arg)
-    else:
+    if name == "output":
         vars()[name] = arg
+    elif name == "verbose":
+        vars()[name] = (lambda x: True if x == "True" else False)(arg)
+    else:
+        vars()[name] = float(arg)
 
 
         
@@ -372,10 +375,12 @@ class SVG_info:
         i = 1
         L = len(self.paths)
         for d,l in self.paths:
-            print("Computing path {} over {}".format(i, L))
+            if verbose:
+                print("Computing path {} over {}".format(i, L))
             i+=1
             f.write(path_to_gcode(d,l))
-            print("--> DONE")
+            if verbose:
+                print("--> DONE")
 
         # Get back home
         f.write('M5\n') # to get up the printhead
@@ -385,4 +390,4 @@ class SVG_info:
         f.close()
 
 S = SVG_info(doc, output)
-
+S.gcode()
