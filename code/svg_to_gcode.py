@@ -12,8 +12,8 @@ output = filename.split(".")[0] + ".gcode"
 SPEED = 3000 # Speed in millimeters/minute
 PAUSE_start = 200 # Pause in milliseconds after putting down the printhead
 PAUSE_end = 400 # Pause in milliseconds after pulling up the printhead
-dl_min = 0.2 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
-dl_max = 0.6 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
+dl_min = 0.5 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
+dl_max = 1 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
 sensitivity = 0.4 # 
 dT_min = 0.00001 # Discretization: "delta T minimum"
 accuracy = 1 # Discretization: number of decimals (by default everything approximated within 1 decimal)
@@ -161,18 +161,19 @@ def transform(x,y, transformations):
             ry*=yscale
             
         elif name == "skewX":
-            print("not yet implemented")
+            print("SkewX not implemented yet")
             
         elif name == "skewY":
-            print("not yet implemented")
+            print("SkewY not implemented yet")
             
     return approx(rx),approx(ry)
 
 def path_to_gcode(p, transformation = ""):
     i = 0
     gcode = ""
-    cx = 0
-    cy = 0
+    cx, cy = 0, 0 # where the printhead is (with the approx)
+    rx, ry = 0, 0 # exact theoretic position (without approx), useful when relative positions to avoid propagating errors
+    
     while i < len(p):
         # Move
         if p[i] == 'M':
@@ -316,7 +317,10 @@ def get_transform(e):
     res = ""
     root = e
     while root != doc:
-        res = res + " " + root.getAttribute('transform')
+        add = reversed(root.getAttribute('transform').split())
+        for t in add:
+            res = res + " " + t
+        # res = root.getAttribute('transform') + " " + res
         root = root.parentNode
     return res
 
