@@ -9,9 +9,9 @@ parameters = sys.argv
 # Set of parameters by default
 filename = parameters[1]
 output = filename.split(".")[0] + ".gcode"
-SPEED = 3000 # Speed in millimeters/minute
-PAUSE_start = 200 # Pause in milliseconds after putting down the printhead
-PAUSE_end = 400 # Pause in milliseconds after pulling up the printhead
+speed = 3000 # Speed in millimeters/minute
+pause_start = 200 # Pause in milliseconds after putting down the printhead
+pause_end = 400 # Pause in milliseconds after pulling up the printhead
 dl_min = 0.2 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
 dl_max = 0.7 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
 sensitivity = 0.4 # 
@@ -90,7 +90,7 @@ def draw_object(F, I, currentx, currenty, DOWN = True, UP = True):
     if DOWN:
         gcode += 'G1 X{} Y{}\n'.format(x,y)
         gcode += 'M3 S1000\n'
-        gcode += 'G4 P0.{}\n'.format(PAUSE_start)
+        gcode += 'G4 P0.{}\n'.format(pause_start)
 
     while T < 1:
         if distance(cx,cy, x, y) > dl_min:
@@ -112,7 +112,7 @@ def draw_object(F, I, currentx, currenty, DOWN = True, UP = True):
         gcode += 'G1 X{} Y{}\n'.format(cx, cy)
     if UP:
         gcode += 'M5\n'
-        gcode += 'G4 P0.{}\n'.format(PAUSE_end)
+        gcode += 'G4 P0.{}\n'.format(pause_end)
     return gcode, cx, cy
 
 
@@ -180,7 +180,7 @@ def path_to_gcode(p, transformation = ""):
             cx, cy = transform(float(p[i+1]),float(p[i+2]),transformation)
             gcode += 'G1 X{} Y{}\n'.format(cx,cy)
             gcode += 'M3 S1000\n'
-            gcode += 'G4 P0.{}\n'.format(PAUSE_start)
+            gcode += 'G4 P0.{}\n'.format(pause_start)
             i+=3
             
         # Line
@@ -216,7 +216,7 @@ def path_to_gcode(p, transformation = ""):
 
 
     gcode += 'M5\n'
-    gcode += 'G4 P0.{}\n'.format(PAUSE_end)
+    gcode += 'G4 P0.{}\n'.format(pause_end)
     return gcode
 
 def isfloat(value):
@@ -361,7 +361,7 @@ class SVG_info:
         f.write('M5\n') # to get up the printhead
         f.write('G90\n') # Absolute position
         f.write('G21\n') # Unit = millimeters
-        f.write('G1 F{}\n'.format(SPEED)) # Speed in millimeter/minute
+        f.write('G1 F{}\n'.format(speed)) # Speed in millimeter/minute
 
         # for e in self.ellipses:
         #     f.write(draw_object(ellipse, e)[0])
@@ -384,7 +384,7 @@ class SVG_info:
 
         # Get back home
         f.write('M5\n') # to get up the printhead
-        f.write('G4 P0.{}\n'.format(PAUSE_end))
+        f.write('G4 P0.{}\n'.format(pause_end))
         f.write('G1 X0 Y0\n') # Get back home
         
         f.close()
