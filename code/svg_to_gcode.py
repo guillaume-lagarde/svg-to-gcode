@@ -353,7 +353,7 @@ class SVG_info:
         self.clean_it()
 
     def clean_it(self):
-        self.paths = [(relative_to_absolute(delete_Z(list(filter(None,re.split('([M|C|L])|,| ',d))))),t) for (d,t) in self.paths]                                
+        self.paths = [(relative_to_absolute(delete_Z(list(filter(None,re.split('([M|C|L|H|V|m|c|l|h|v])|,| ',d))))),t) for (d,t) in self.paths]                                
 
     def gcode(self):
         f = open(self.output, 'w')
