@@ -13,7 +13,7 @@ creates a file `namefile.gcode` that contains the corresponding gcode for the sv
 
 Several parameters can be added to tune the plot more carefully. For example you can type:
 
-`python3 svg_to_gcode.py namefile.svg speed=4500 output=awesome.gcode"
+`python3 svg_to_gcode.py namefile.svg speed=4500 output=awesome.gcode`
 
 creates a gcode file named `awesome.gcode` with a plotting speed of 4500 millimeters/minute.
 
