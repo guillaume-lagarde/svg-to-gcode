@@ -12,8 +12,8 @@ output = filename.split(".")[0] + ".gcode"
 SPEED = 3000 # Speed in millimeters/minute
 PAUSE_start = 200 # Pause in milliseconds after putting down the printhead
 PAUSE_end = 400 # Pause in milliseconds after pulling up the printhead
-dl_min = 0.5 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
-dl_max = 1 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
+dl_min = 0.2 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
+dl_max = 0.7 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
 sensitivity = 0.4 # 
 dT_min = 0.00001 # Discretization: "delta T minimum"
 accuracy = 1 # Discretization: number of decimals (by default everything approximated within 1 decimal)
@@ -218,92 +218,108 @@ def path_to_gcode(p, transformation = ""):
     gcode += 'M5\n'
     gcode += 'G4 P0.{}\n'.format(PAUSE_end)
     return gcode
+
+def isfloat(value):
+  try:
+    float(value)
+    return True
+  except ValueError:
+    return False
+
+def relative_to_absolute(d):
+    cx,cy = 0,0
+    cs = ""
+    i = 0
+    res = []
+    while i < len(d):
+        ISF = isfloat(d[i])
+        if d[i] == "M" or (ISF and cs == "M"):
+            cs = "M"
+            if ISF:
+                i-=1
+            cx, cy = float(d[i+1]),float(d[i+2])
+            res+= ["M", str(cx), str(cy)]
+            i+=3
+        elif d[i] == "m" or (ISF and cs == "m"):
+            cs = "M"
+            if ISF:
+                i-=1
+            cx += float(d[i+1])
+            cy += float(d[i+2])
+            res+= ["M", str(cx), str(cy)]
+            i+=3
+
+        elif d[i] == "L" or (ISF and cs == "L"):
+            cs = "L"
+            if ISF:
+                i-=1
+            cx, cy = float(d[i+1]),float(d[i+2])
+            res+= ["L", str(cx), str(cy)]
+            i+=3
             
+        elif d[i] == "l" or (ISF and cs == "l"):
+            cs = "l"
+            if ISF:
+                i-=1
+            cx += float(d[i+1])
+            cy += float(d[i+2])
+            res+= ["L", str(cx), str(cy)]
+            i+=3
 
-# # F = parametrization function; I = instance of the object
-# def draw_object(F, I, start = 0, end = 1, DOWN = True, UP = True):
-#     T = start
-#     x, y = F(I,T)
-#     gcode = ""
-#     # gcode = 'G1 X{} Y{}\n'.format(x,Y*y)
-#     if DOWN:
-#         gcode += 'M3 S1000\n'
-#         gcode += 'G4 P0.{}\n'.format(PAUSE_start)
-#     T+=dT
-#     while T < end:
-#         x2, y2 = F(I,T)
-#         if distance(x,y,x2,y2) < dl_min:
-#             T+=dT
-#         else:
-#             gcode += 'G1 X{} Y{}\n'.format(X*approx(x2),Y*approx(y2))
-#             T+=dT
-#             x, y = x2, y2
-#     x2,y2 = F(I,end)
-#     if distance(x,y,x2,y2) > dl2:
-#         gcode += 'G1 X{} Y{}\n'.format(X*approx(x2),Y*approx(y2))
-#     if UP:
-#         gcode += 'M5\n'
-#         gcode += 'G4 P0.{}\n'.format(PAUSE_end)
-#     return gcode, x,y
+        elif d[i] == "H" or (ISF and cs == "H"):
+            cs = "H"
+            if ISF:
+                i-=1
+            cx = float(d[i+1])
+            res+= ["L", str(cx), str(cy)]
+            i+=2
 
+        elif d[i] == "h" or (ISF and cs == "h"):
+            cs = "h"
+            if ISF:
+                i-=1
+            cx += float(d[i+1])
+            res+= ["L", str(cx), str(cy)]
+            i+=2
 
-# def path_to_gcode(p):
-#     i = 0
-#     gcode = ""
-#     cx = 0
-#     cy = 0
-#     while i < len(p):
-#         if p[i] == 'M':
-#             x, y = float(p[i+1]),float(p[i+2])
-#             gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
-#             gcode += 'M3 S1000\n'
-#             gcode += 'G4 P0.{}\n'.format(PAUSE_start)
-#             cx = float(p[i+1])
-#             cy = float(p[i+2])
-#             i+=3
-#         elif p[i] == 'L':
-#             x, y = float(p[i][1:]),float(p[i+1])
-#             gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
-#             cx = float(p[i][1:])
-#             cy = float(p[i+1])
-#             i+=2
-#         elif p[i] == 'Z':
-#             x, y = float(p[1]),float(p[2])
-#             gcode += 'G1 X{} Y{}\n'.format(X*approx(x),Y*approx(y))
-#             cx = float(p[1])
-#             cy = float(p[2])
-#             i+=1
-#         elif p[i] == 'C':
-#             code, x, y = draw_object(bezier, [cx,cy,float(p[i+1]),float(p[i+2]),float(p[i+3]),float(p[i+4]), float(p[i+5]), float(p[i+6])], start = 0, end = 1, DOWN = False, UP = False)
-#             gcode+=code
-#             cx = approx(x)
-#             cy = approx(y)
-#             i+=7
-            # OLD VERSION
-            # gcode += draw_object(bezier, [cx,cy,float(p[i+1]),float(p[i+2]),float(p[i+3]),float(p[i+4]), float(p[i+5]), float(p[i+6])], start = 0, end = 1, DOWN = False, UP = False)
-            # cx, cy = p[i+5],p[i+6]
-            # END OLD VERSION
-            
-        # else:
-        #     gcode += draw_object(bezier, [cx,cy,float(p[i]),float(p[i+1]),float(p[i+2]),float(p[i+3]), float(p[i+4]), float(p[i+5])], start = 0, end = 1, DOWN = False, UP = False)
-        #     cx, cy = p[i+4],p[i+5]
-        #     i+=6
+        elif d[i] == "V" or (ISF and cs == "V"):
+            cs = "V"
+            if ISF:
+                i-=1
+            cy = float(d[i+1])
+            res+= ["L", str(cx), str(cy)]
+            i+=2
 
-        # elif p[i][0] == 'Q': # quadratic bezier curve; simulated with the cubic one
-        #     x1, y1 = float(p[i][1:]), float(p[i+1])
-        #     x, y = float(p[i+2]), float(p[i+3])
-        #     gcode += draw_object(bezier, [cx,cy,1/3*(cx+2*x1),1/3*(cy+2*y1),1/3*(x1+2*x), 1/3*(y1+2*y) x,y], start = 0, end = 1, DOWN = False, UP = False)
-        #     cx, cy = x, y
-        #     i+=4
-        # elif p[i][0] == 'A':
-        #     rx, ry = float(p[i][1:]), float(p[i+1])
-        #     x_axis_rotation = float(p[i+2])
-        #     large_arc_flag = float(p[i+3])
-        #     sweep_flag  = float(p[i+4])
-        #     x, y = float(p[i+5]), float(p[i+6])
-    # gcode += 'M5\n'
-    # gcode += 'G4 P0.{}\n'.format(PAUSE_end)
-    # return gcode
+        elif d[i] == "v" or (ISF and cs == "v"):
+            cs = "v"
+            if ISF:
+                i-=1
+            cy += float(d[i+1])
+            res+= ["L", str(cx), str(cy)]
+            i+=2
+
+        elif d[i] == "C" or (ISF and cs == "C"):
+            # print(d[i:i+7])
+            cs = "C"
+            if ISF:
+                i-=1
+            res+= ["C"] + d[i+1:i+7]
+            # print(res)
+            cx,cy = float(res[-2]), float(res[-1])
+            i+=7
+
+        elif d[i] == "c" or (ISF and cs == "c"):
+            cs = "c"
+            if ISF:
+                i-=1
+            # print(d[i:i+7])
+            XS = [str(cx + float(d[i+j])) for j in [1,3,5]]
+            YS = [str(cy + float(d[i+j])) for j in [2,4,6]]
+            res+= ["C",XS[0],YS[0],XS[1],YS[1],XS[2],YS[2]]
+            # print(res)
+            cx,cy = float(res[-2]), float(res[-1])            
+            i+=7
+    return res
 
 def delete_Z(p):
     if p[-1] == 'z' or p[-1] == 'Z':
@@ -320,6 +336,7 @@ def get_transform(e):
         add = reversed(root.getAttribute('transform').split())
         for t in add:
             res = res + " " + t
+            # res = t + " " + res
         # res = root.getAttribute('transform') + " " + res
         root = root.parentNode
     return res
@@ -336,30 +353,7 @@ class SVG_info:
         self.clean_it()
 
     def clean_it(self):
-        self.paths = [(delete_Z(list(filter(None,re.split('([M|C|L])|,| ',d)))),t) for (d,t) in self.paths]
-        
-    def merge(self):
-        b = True
-        L = len(self.paths)
-        P = {(index, self.paths[index]) for i in range(len(self.paths))}
-        while b:
-            b = False
-            for d1 in P:
-                for d2 in P:
-                    if d1 != d2:
-                        if distance(*end(P[d1]), *start(P[d2])) < dl2:
-                            P[d1] += P.pop(d2)[2:]
-                            b = True
-                            break
-        self.paths = [d for d in P]
-                            
-            # for i in range(L):
-            #     for j in range(L):
-            #         if i != j:
-            #             if distance(*end(self.paths[i]), *start(self.path[j])):
-            #                 self.paths[j]+= self.paths[i][2:]
-            #                 self.paths.pop(i)
-                                
+        self.paths = [(relative_to_absolute(delete_Z(list(filter(None,re.split('([M|C|L])|,| ',d))))),t) for (d,t) in self.paths]                                
 
     def gcode(self):
         f = open(self.output, 'w')
