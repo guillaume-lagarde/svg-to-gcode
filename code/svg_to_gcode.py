@@ -9,13 +9,13 @@ parameters = sys.argv
 # Set of parameters by default
 filename = parameters[1]
 output = filename.split(".")[0] + ".gcode"
-speed = 3000 # Speed in millimeters/minute
+speed = 2500 # Speed in millimeters/minute
 pause_start = 200 # Pause in milliseconds after putting down the printhead
 pause_end = 400 # Pause in milliseconds after pulling up the printhead
-dl_min = 0.2 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
-dl_max = 0.7 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
+dl_min = 0.5 # Discretization: ~size min of each step in millimeters; the smaller the more accurate
+dl_max = 0.9 # Discretization: ~size max of each step in millimeters; the smaller the more accurate
 sensitivity = 0.4 # 
-dT_min = 0.00001 # Discretization: "delta T minimum"
+dT_min = 0.000001 # Discretization: "delta T minimum"
 accuracy = 1 # Discretization: number of decimals (by default everything approximated within 1 decimal)
 X = 1 #normal x-axis; -1 to reverse axis
 Y = 1 #normal y-axis; -1 to reverse axis
@@ -250,6 +250,8 @@ def relative_to_absolute(d):
             i+=3
 
         elif d[i] == "L" or (ISF and cs == "L"):
+            print("L")
+            print(d[i:])
             cs = "L"
             if ISF:
                 i-=1
@@ -259,6 +261,7 @@ def relative_to_absolute(d):
             
         elif d[i] == "l" or (ISF and cs == "l"):
             cs = "l"
+            print(d[i:])
             if ISF:
                 i-=1
             cx += float(d[i+1])
@@ -267,6 +270,7 @@ def relative_to_absolute(d):
             i+=3
 
         elif d[i] == "H" or (ISF and cs == "H"):
+            print("H")
             cs = "H"
             if ISF:
                 i-=1
@@ -284,6 +288,7 @@ def relative_to_absolute(d):
 
         elif d[i] == "V" or (ISF and cs == "V"):
             cs = "V"
+            print("V")
             if ISF:
                 i-=1
             cy = float(d[i+1])
@@ -323,7 +328,7 @@ def relative_to_absolute(d):
 
 def delete_Z(p):
     if p[-1] == 'z' or p[-1] == 'Z':
-        return p[:-1] + ['L{}'.format(p[0][1:])] + [p[1]]
+        return p[:-1] + ['L',p[1],p[2]]
     else:
         return p
 
