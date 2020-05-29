@@ -23,13 +23,13 @@ Here is a small list of parameters that can be changed (they all should come aft
 - `output`: output filename (same as input by default)
 - `pause_start`: pause in milliseconds after putting down the printhead (200 by default)
 - `pause_end`: pause in milliseconds after pulling up the printhead (400 by default)
-- `dl_min`: size min of each small step, in millimeters (0.2 by default)
-- `dl_max` size max of each small step, in millimeters (0.7 by default)
+- `dl_min`: size min of each small step, in millimeters (0.5 by default)
+- `dl_max` size max of each small step, in millimeters (0.9 by default)
 - `accuracy`: number of decimals (1 if not specified)
-- `verbose`: shoud be True or False. Give some information during the conversion (True by default)
+- `verbose`: should be True or False. Give some information during the conversion (True by default)
 
 Features implemented:
-- nested transformation: everything should work except skewX and skewY (soon to come),
+- nested transformations: everything should work except skewX and skewY (soon to come),
 - paths with lines, moveto, cubic Bézier (elliptical arcs and quadratic Bézier soon to come)
 
 If you want to use ellipse, circles or lines, it should work if you don't use any transform on them (but you need to uncomment lines 366 -> 373). I will fix it soon to handle them in full generality.
