@@ -250,8 +250,6 @@ def relative_to_absolute(d):
             i+=3
 
         elif d[i] == "L" or (ISF and cs == "L"):
-            print("L")
-            print(d[i:])
             cs = "L"
             if ISF:
                 i-=1
@@ -261,7 +259,6 @@ def relative_to_absolute(d):
             
         elif d[i] == "l" or (ISF and cs == "l"):
             cs = "l"
-            print(d[i:])
             if ISF:
                 i-=1
             cx += float(d[i+1])
@@ -270,7 +267,6 @@ def relative_to_absolute(d):
             i+=3
 
         elif d[i] == "H" or (ISF and cs == "H"):
-            print("H")
             cs = "H"
             if ISF:
                 i-=1
@@ -288,7 +284,6 @@ def relative_to_absolute(d):
 
         elif d[i] == "V" or (ISF and cs == "V"):
             cs = "V"
-            print("V")
             if ISF:
                 i-=1
             cy = float(d[i+1])
@@ -304,12 +299,10 @@ def relative_to_absolute(d):
             i+=2
 
         elif d[i] == "C" or (ISF and cs == "C"):
-            # print(d[i:i+7])
             cs = "C"
             if ISF:
                 i-=1
             res+= ["C"] + d[i+1:i+7]
-            # print(res)
             cx,cy = float(res[-2]), float(res[-1])
             i+=7
 
@@ -317,11 +310,9 @@ def relative_to_absolute(d):
             cs = "c"
             if ISF:
                 i-=1
-            # print(d[i:i+7])
             XS = [str(cx + float(d[i+j])) for j in [1,3,5]]
             YS = [str(cy + float(d[i+j])) for j in [2,4,6]]
             res+= ["C",XS[0],YS[0],XS[1],YS[1],XS[2],YS[2]]
-            # print(res)
             cx,cy = float(res[-2]), float(res[-1])            
             i+=7
     return res
